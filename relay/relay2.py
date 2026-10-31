@@ -49,6 +49,23 @@ else:
 UA = "Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0"
 LOG = open(LOG_FILE, "a", buffering=1)
 
+# ---- token liveness. DeepSeek answers 401/403 or an auth-shaped biz_code once
+# the web session dies; the client should be told to re-run extract.py rather
+# than debug a silent empty reply.
+AUTH_HINT = ("Session expired or rejected. Close Firefox completely, then run: "
+             "py relay/extract.py — and restart the relay.")
+DEAD_TOKEN = [False]
+
+def _auth_dead(st, raw=b""):
+    if st in (401, 403):
+        return True
+    try:
+        j = json.loads(raw)
+        code = (j.get("code") or (j.get("data") or {}).get("biz_code") or 0)
+    except Exception:
+        return False
+    return int(code or 0) in (40001, 40002, 40003, 40100, 40101)
+
 # ---- pacing: every outbound call to chat.deepseek.com goes through _throttle().
 # A harness on a coding loop fires back-to-back turns; a human on the website
 # does not. Thin gaps + jitter keep the request rhythm inside human range.
@@ -94,7 +111,13 @@ def api(method, path, body=None, extra_headers=None):
         with urllib.request.urlopen(req, timeout=300) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
-        return e.code, e.read()
+        body = e.read()
+        if _auth_dead(e.code, body):
+            if not DEAD_TOKEN[0]:
+                DEAD_TOKEN[0] = True
+                log("AUTH DEAD:", AUTH_HINT)
+            raise SystemExit(AUTH_HINT)
+        return e.code, body
 
 def solve_pow():
     st, raw = api("POST", "/api/v0/chat/create_pow_challenge", {"target_path": "/api/v0/chat/completion"})
@@ -118,9 +141,11 @@ def solve_pow():
 
 class ApiBrain:
     """One DeepSeek chat conversation behind an OpenAI-shaped ask() call."""
-    def __init__(self):
+    def __init__(self, reasoning=False):
         self.session_id = None
         self.parent_id = None
+        self.reasoning = reasoning
+        self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     def new_chat(self):
         st, raw = api("POST", "/api/v0/chat_session/create", {})
@@ -153,6 +178,9 @@ class ApiBrain:
             "thinking_enabled": False,
             "search_enabled": False,
         }
+        # reasoning model: ask DeepSeek to think before answering
+        if self.reasoning:
+            body["thinking_enabled"] = True
         st, raw = api("POST", "/api/v0/chat/completion", body, {"x-ds-pow-response": pow_header})
         if st != 200:
             # push the next attempt far out: repeated hits on a throttled or
@@ -163,6 +191,13 @@ class ApiBrain:
         txt, mid = self._final_text()
         if mid is not None:
             self.parent_id = mid
+        # usage is estimated from the bytes actually exchanged: upstream reports
+        # no token counts on the consumer web API.
+        self.last_usage = {
+            "prompt_tokens": max(1, len(text) // 4),
+            "completion_tokens": max(1, len(txt) // 4),
+            "total_tokens": max(2, (len(text) + len(txt)) // 4),
+        }
         log("ask done: answer chars=%d parent=%s" % (len(txt), mid))
         return txt
 
@@ -172,6 +207,7 @@ LOCK = threading.Lock()
 # own chains and can never reset the main conversation.
 BRAINS = {}
 CHAINS = {}
+MODELS = ("deepseek-chat", "deepseek-reasoner")
 
 def chain_key(messages, tools):
     if tools:
@@ -183,9 +219,9 @@ def chain_key(messages, tools):
             seed += c[:200]
     return "aux:" + hashlib.md5(seed.encode()).hexdigest()[:8]
 
-def get_brain(key):
+def get_brain(key, reasoning=False):
     if key not in BRAINS:
-        BRAINS[key] = ApiBrain()
+        BRAINS[key] = ApiBrain(reasoning=reasoning)
         CHAINS[key] = {"count": 0, "fp": ""}
         if len(BRAINS) > 6:
             old = next(iter(BRAINS))
@@ -448,7 +484,8 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/v1/models"):
-            self._json(200, {"object": "list", "data": [{"id": "deepseek-chat", "object": "model", "owned_by": "chatbrain"}]})
+            self._json(200, {"object": "list", "data": [
+                {"id": m, "object": "model", "owned_by": "chatbrain"} for m in MODELS]})
         else:
             self._json(404, {"error": "not found"})
 
@@ -460,11 +497,18 @@ class H(BaseHTTPRequestHandler):
         messages = req.get("messages") or []
         tools = req.get("tools") or []
         stream = bool(req.get("stream"))
-        log("completion req: msgs=%d tools=%d stream=%s" % (len(messages), len(tools), stream))
+        model = req.get("model") or MODELS[0]
+        if model not in MODELS:
+            model = MODELS[0]
+        reasoning = model.endswith("reasoner")
+        log("completion req: msgs=%d tools=%d stream=%s model=%s" % (len(messages), len(tools), stream, model))
         with LOCK:
             key = chain_key(messages, tools)
-            brain = get_brain(key)
-            chain = CHAINS[key]
+            # reasoning and plain share the upstream call but not the chat
+            # session: separate keys keep their histories from bleeding.
+            bkey = key + ("|r" if reasoning else "")
+            brain = get_brain(bkey, reasoning)
+            chain = CHAINS[bkey]
             prompt = build_prompt(messages, tools, brain, chain)
             log("prompt chars: %d chain=%s" % (len(prompt), key))
             try:
@@ -487,25 +531,32 @@ class H(BaseHTTPRequestHandler):
             msg["tool_calls"] = calls
         comp = {
             "id": "chatcmpl-chatbrain", "object": "chat.completion", "created": int(time.time()),
-            "model": "deepseek-chat",
+            "model": model,
             "choices": [{"index": 0, "message": msg, "finish_reason": finish}],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "usage": brain.last_usage,
         }
         if not stream:
             self._json(200, comp); return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
-        delta = {"role": "assistant"}
-        if text: delta["content"] = text
-        if calls: delta["tool_calls"] = calls
-        chunk = {"id": comp["id"], "object": "chat.completion.chunk", "created": comp["created"], "model": "deepseek-chat",
-                 "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
-        self.wfile.write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode())
-        fin = {"id": comp["id"], "object": "chat.completion.chunk", "created": comp["created"], "model": "deepseek-chat",
-               "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]}
-        self.wfile.write(("data: " + json.dumps(fin, ensure_ascii=False) + "\n\n").encode())
+        def emit(delta, fr=None):
+            chunk = {"id": comp["id"], "object": "chat.completion.chunk", "created": comp["created"],
+                     "model": model, "choices": [{"index": 0, "delta": delta, "finish_reason": fr}]}
+            self.wfile.write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode())
+            self.wfile.flush()
+        emit({"role": "assistant", "content": ""})
+        if text:
+            # stream the prose in word-sized deltas so clients render as it arrives
+            for piece in re.findall(r"\S+\s*|\s+", text):
+                emit({"content": piece})
+        if calls:
+            # tool calls cannot be split: arguments are a JSON string
+            emit({"tool_calls": [dict(c, index=i) for i, c in enumerate(calls)]})
+        emit({}, finish)
         self.wfile.write(b"data: [DONE]\n\n")
+        self.wfile.flush()
 
 if __name__ == "__main__":
     log("relay2 up on", PORT)
