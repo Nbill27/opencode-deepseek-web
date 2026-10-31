@@ -127,24 +127,55 @@ debugging and nothing else.
 
 ## Requirements
 
-- Windows, macOS, or Linux.
-- Python 3.10+.
-- Firefox, installed normally, profiled separately.
-- [geckodriver](https://github.com/mozilla/geckodriver/releases) on `PATH` or
-  pointed at with `GECKODRIVER_PATH`.
-- A DeepSeek account you can log into in a browser.
-- optional: [opencode](https://opencode.ai) as the client.
+Install all of these before starting. The install order below assumes a fresh
+machine.
+
+| what | why | how to check |
+|---|---|---|
+| Python 3.10+ | runs both scripts | `python --version` |
+| Firefox | the extractor reads its cookie store | `firefox --version` |
+| geckodriver | Selenium drives Firefox through it | `geckodriver --version` |
+| a DeepSeek account | the actual backend | log in once in a browser |
+| opencode (optional) | the client | `opencode --version` |
+
+**Windows + `python` opens the Microsoft Store?** Disable the App Execution
+Alias for `python.exe` (Settings → Apps → Advanced app settings → App execution
+aliases), or install Python from [python.org](https://www.python.org/downloads/)
+and tick *Add python.exe to PATH*.
+
+**geckodriver** — download the matching release from
+[github.com/mozilla/geckodriver/releases](https://github.com/mozilla/geckodriver/releases),
+unpack it anywhere, and either put it on `PATH` or point at the file with the
+`GECKODRIVER_PATH` environment variable. `extract.py` also probes a few common
+Windows locations (`C:\tools\geckodriver\geckodriver.exe`,
+`%LOCALAPPDATA%\geckodriver\geckodriver.exe`) and auto-detects Firefox at
+`C:\Program Files\Mozilla Firefox\firefox.exe` — so if you installed Firefox
+normally you do not need to set `CHATBRAIN_FF_PROFILE` at all, only the profile
+path has to be correct.
 
 ---
 
 ## Install
 
 ```powershell
+git clone https://github.com/Nbill27/opencode-deepseek-web
+cd opencode-deepseek-web
 pip install -r requirements.txt
 ```
 
 Contents: `deepseek-pow>=0.0.1` (proof-of-work solver), `wasmtime` (it runs a
 WASM module), `selenium>=4` (profile read).
+
+> **PowerShell/PowerShell 7 may print `NativeCommandError` after `pip install`,
+> even when the install succeeded.** `pip` writes its "A new release of pip is
+> available" notice to stderr, and PowerShell turns native stderr into an error
+> record. The install still worked. Confirm with:
+>
+> ```powershell
+> pip show deepseek-pow wasmtime selenium
+> ```
+>
+> If those three report a version, you are fine and can ignore the red text.
 
 ---
 
@@ -156,20 +187,34 @@ revoked token costs you one throwaway profile, not your daily history.
 
 Create and log in by hand, in a normal Firefox window:
 
-1. Open the Firefox profile manager (`firefox -P`, or
-   `about:profiles` in the address bar).
-2. Create a new profile, e.g. `deepseek-relay`.
-3. Launch that profile, go to `https://chat.deepseek.com`, log in normally.
-4. Send one message so the session is definitely live.
-5. Close Firefox **completely** before running the extractor.
+1. Open the Firefox profile manager. Type `about:profiles` in the address bar
+   (or run `firefox -P` with Firefox closed).
+2. Click **Create a New Profile**, name it e.g. `deepseek-relay`, finish.
+3. On the `about:profiles` page, in the row of the *new* profile, click
+   **Launch profile in new browser**.
+4. Go to `https://chat.deepseek.com` and log in normally.
+5. Send one message, so the session is definitely live and not still an
+   anonymous shell.
+6. On the `about:profiles` page, copy the **Root Directory** path of that
+   profile. That whole path is what the next step wants.
+7. Close Firefox **completely** — every window, every process.
 
 ---
 
 ## Step 2 — extract the session
 
+Set the profile path, then run the extractor. It opens the profile headlessly,
+reads the auth cookie, and writes the session file.
+
 ```powershell
-$env:CHATBRAIN_FF_PROFILE = "C:\Users\<you>\deepseek-relay-profile"
-$env:GECKODRIVER_PATH     = "C:\tools\geckodriver\geckodriver.exe"
+$env:CHATBRAIN_FF_PROFILE = "C:\Users\<you>\AppData\Roaming\Mozilla\Firefox\Profiles\xxxxxxxx.deepseek-relay"
+python relay\extract.py
+```
+
+If geckodriver is not on `PATH`:
+
+```powershell
+$env:GECKODRIVER_PATH = "C:\tools\geckodriver\geckodriver.exe"
 python relay\extract.py
 ```
 
@@ -177,9 +222,14 @@ On success it prints `TOKEN_LEN: <n>` and writes `relay/.websession.json` — a
 JSON object holding `token` and `cookies`, which is exactly what `relay2.py`
 loads at startup.
 
-`TOKEN_LEN: 0` means the profile is not logged in, or Firefox was still holding
-the profile lock. Close Firefox, delete `parent.lock` inside the profile
-directory, run it again.
+Reading the failures:
+
+| message | meaning |
+|---|---|
+| `Firefox profile not found: …` | `CHATBRAIN_FF_PROFILE` points somewhere that is not a Firefox root directory — re-copy it from `about:profiles` |
+| `Firefox executable not found …` | Firefox is installed off the standard path — install it normally, or set `FIREFOX_BINARY` |
+| `geckodriver not found …` | not on `PATH` and not in a probed location — set `GECKODRIVER_PATH` |
+| `TOKEN_LEN: 0` | profile not logged in, or Firefox still held the profile lock. Close Firefox, delete `parent.lock` inside the profile directory, run again |
 
 > **`relay/.websession.json` is a live account credential.** It is gitignored.
 > Never commit it, never paste it into an issue, never copy it into a screenshot.
@@ -200,6 +250,9 @@ Expected:
 relay2 up on 20232
 ```
 
+If instead you get `Session file not found: …`, step 2 did not finish — run
+`python relay\extract.py` again before starting the relay.
+
 Verify from another shell:
 
 ```powershell
@@ -218,6 +271,8 @@ curl.exe -s http://127.0.0.1:20232/v1/chat/completions `
 If it answers, the account, the PoW solver, and the throttle are all working.
 `relay/relay2.log` records each stage (`pow challenge: algo=... diff=...`,
 `chat session created: ...`, `throttle: sleep 2.96s`, `ask done: answer chars=…`).
+
+Leave the relay running. Steps 4 needs it up on `127.0.0.1:20232`.
 
 ---
 
@@ -260,6 +315,16 @@ Or just run the wrapper, which starts the relay first and then opens opencode:
 
 ```powershell
 .\start.ps1
+```
+
+The wrapper checks for `relay/.websession.json`, launches the relay in a hidden
+window, waits for port `20232` to answer, then execs opencode — so you never run
+step 3 by hand. If it complains about a missing session, do step 2.
+
+Verify end to end without the TUI:
+
+```powershell
+opencode run --model chatbrain/deepseek-chat "Reply with exactly one word: OK"
 ```
 
 ---

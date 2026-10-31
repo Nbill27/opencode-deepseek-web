@@ -15,10 +15,40 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FIREFOX_BIN = os.environ.get("FIREFOX_BIN", "/usr/bin/firefox")
+
+def _find_firefox():
+    for p in ("/usr/bin/firefox", "/usr/bin/firefox-esr",
+              r"C:\Program Files\Mozilla Firefox\firefox.exe",
+              r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe"):
+        if os.path.isfile(p):
+            return p
+    return None
+
+def _find_geckodriver():
+    from shutil import which
+    p = which("geckodriver")
+    if p:
+        return p
+    for p in (r"C:\tools\geckodriver\geckodriver.exe",
+              os.path.join(HERE, "geckodriver.exe"), os.path.join(HERE, "geckodriver")):
+        if os.path.isfile(p):
+            return p
+    return None
+
+FIREFOX_BIN = os.environ.get("FIREFOX_BIN") or _find_firefox()
+GECKODRIVER = os.environ.get("GECKODRIVER_PATH") or _find_geckodriver()
 FF_PROFILE = os.environ.get("CHATBRAIN_FF_PROFILE", os.path.join(HERE, "ff-profile"))
-GECKODRIVER = os.environ.get("GECKODRIVER_PATH", "geckodriver")
 SESSION_FILE = os.environ.get("CHATBRAIN_SESSION_FILE", os.path.join(HERE, ".websession.json"))
+
+if not FIREFOX_BIN:
+    raise SystemExit("Firefox not found. Install Firefox, or set FIREFOX_BIN to firefox.exe")
+if not GECKODRIVER:
+    raise SystemExit("geckodriver not found on PATH. Download it, put geckodriver.exe next to "
+                     "this script or in C:\\tools\\geckodriver, or set GECKODRIVER_PATH")
+if not os.path.isdir(FF_PROFILE):
+    raise SystemExit(f"Firefox profile not found: {FF_PROFILE}\n"
+                     "Open Firefox, go to about:profiles, copy the Root Directory of the profile "
+                     "you logged into chat.deepseek.com with, and set CHATBRAIN_FF_PROFILE to it.")
 
 opts = Options()
 opts.binary_location = FIREFOX_BIN

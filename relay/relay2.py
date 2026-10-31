@@ -14,7 +14,6 @@ it."""
 import json, time, hashlib, threading, re, os, base64, random
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.request, urllib.error
-from deepseek_pow import Challenge, registry
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("CHATBRAIN_PORT", "20232"))
@@ -22,8 +21,26 @@ BASE = "https://chat.deepseek.com"
 SESSION_FILE = os.environ.get("CHATBRAIN_SESSION_FILE", os.path.join(HERE, ".websession.json"))
 LOG_FILE = os.environ.get("CHATBRAIN_LOG_FILE", os.path.join(HERE, "relay2.log"))
 REPLIES_LOG = os.environ.get("CHATBRAIN_REPLIES_LOG", os.path.join(HERE, "relay2-replies.log"))
-WS = json.load(open(SESSION_FILE))
-TOKEN = WS["token"]
+WS = None
+if not os.path.exists(SESSION_FILE):
+    raise SystemExit(
+        f"Session file not found: {SESSION_FILE}\n"
+        "Run `py relay/extract.py` first (see README, Step 2), "
+        "or set CHATBRAIN_SESSION_FILE to an existing session file.")
+try:
+    WS = json.load(open(SESSION_FILE))
+except json.JSONDecodeError as e:
+    raise SystemExit(f"Session file is not valid JSON: {SESSION_FILE}\n{e}")
+TOKEN = WS.get("token")
+if not TOKEN:
+    raise SystemExit(f"Session file has no 'token': {SESSION_FILE}\n"
+                     "Re-run `py relay/extract.py` (your session may be empty).")
+
+try:
+    from deepseek_pow import Challenge, registry
+except ImportError:
+    raise SystemExit("Missing dependency 'deepseek_pow'.\n"
+                     "Run: pip install -r requirements.txt")
 _raw_cookies = WS.get("cookies") or {}
 if isinstance(_raw_cookies, list):
     COOKIES = {c["name"]: c["value"] for c in _raw_cookies if "name" in c}
