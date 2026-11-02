@@ -2,4 +2,5 @@
 # Python 3.11+ required.
 deepseek-pow>=0.0.1   # DeepSeek web PoW challenge solver (pulls in wasmtime)
 wasmtime              # runtime used by deepseek-pow
+curl_cffi>=0.7        # browser TLS/JA3 fingerprint for relay2.py (urllib fallback if absent)
 selenium>=4           # only needed by relay/extract.py (Firefox session extraction)

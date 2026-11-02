@@ -11,9 +11,18 @@ environment variables (see .env.example); no credentials are stored in this
 file. The session token lives in a separate JSON file (default
 ./.websession.json next to this script) — keep it chmod 600 and never commit
 it."""
-import json, time, hashlib, threading, re, os, base64, random
+import json, time, math, hashlib, threading, re, os, base64, random
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.request, urllib.error
+
+# Transport: curl_cffi replays a real browser's TLS/JA3 + HTTP/2 fingerprint.
+# The chat API sits behind Cloudflare, and a stock urllib handshake is a shape
+# no Firefox produces. urllib stays as a fallback so the relay still boots on a
+# machine without the wheel.
+try:
+    from curl_cffi import requests as _cffi
+except ImportError:
+    _cffi = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("CHATBRAIN_PORT", "20232"))
@@ -46,8 +55,24 @@ if isinstance(_raw_cookies, list):
     COOKIES = {c["name"]: c["value"] for c in _raw_cookies if "name" in c}
 else:
     COOKIES = _raw_cookies
-UA = "Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0"
+# Used only by the urllib fallback. With curl_cffi the impersonation profile
+# owns the UA unless CHATBRAIN_UA overrides it: a Linux UA bolted onto a macOS
+# TLS profile is itself a tell, so the default is "let the profile speak".
+UA = os.environ.get(
+    "CHATBRAIN_UA",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0")
+IMPERSONATE = os.environ.get("CHATBRAIN_IMPERSONATE", "firefox147")
 LOG = open(LOG_FILE, "a", buffering=1)
+_tls = threading.local()
+
+def _session():
+    """One curl_cffi session per relay thread: its cookie jar and connection
+    pool are per-instance, and ThreadingHTTPServer runs a thread per request."""
+    s = getattr(_tls, "s", None)
+    if s is None:
+        s = _cffi.Session(impersonate=IMPERSONATE)
+        _tls.s = s
+    return s
 
 # ---- token liveness. DeepSeek answers 401/403 or an auth-shaped biz_code once
 # the web session dies; the client should be told to re-run extract.py rather
@@ -68,19 +93,30 @@ def _auth_dead(st, raw=b""):
 
 # ---- pacing: every outbound call to chat.deepseek.com goes through _throttle().
 # A harness on a coding loop fires back-to-back turns; a human on the website
-# does not. Thin gaps + jitter keep the request rhythm inside human range.
+# does not. Gaps are drawn log-normal — long right tail reads as think-time —
+# plus a rare long pause, so a 200-turn session never looks like a metronome.
 MIN_GAP = float(os.environ.get("CHATBRAIN_MIN_GAP", "2.5"))
 JITTER = float(os.environ.get("CHATBRAIN_JITTER", "1.5"))
 FAIL_COOLDOWN = float(os.environ.get("CHATBRAIN_FAIL_COOLDOWN", "30"))
+PAUSE_EVERY = int(os.environ.get("CHATBRAIN_PAUSE_EVERY", "15"))
+PAUSE_RANGE = (20.0, 90.0)
+_SIGMA = math.log1p(max(JITTER, 0.0) / max(MIN_GAP, 0.1))
 _last_call = [0.0]
+_calls = [0]
 _throttle_lock = threading.Lock()
 
 def _throttle(extra=0.0):
     """Serialize + space out upstream calls. Holds the lock across the sleep so
     two concurrent chains can never bunch up into a burst."""
     with _throttle_lock:
-        gap = MIN_GAP + random.uniform(0, JITTER) + extra
-        wait = _last_call[0] + gap - time.monotonic()
+        gap = MIN_GAP * math.exp(random.gauss(0.0, _SIGMA))
+        gap = max(gap, MIN_GAP * 0.5)      # never a near-zero gap, even on retry
+        _calls[0] += 1
+        if PAUSE_EVERY and _calls[0] % PAUSE_EVERY == 0:
+            pause = random.uniform(*PAUSE_RANGE)
+            log("throttle: idle pause %.0fs" % pause)
+            gap += pause
+        wait = _last_call[0] + gap + extra - time.monotonic()
         if wait > 0:
             log("throttle: sleep %.2fs" % wait)
             time.sleep(wait)
@@ -95,29 +131,52 @@ def api(method, path, body=None, extra_headers=None):
     _throttle()
     url = BASE + path
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method)
-    req.add_header("Authorization", "Bearer " + TOKEN)
-    req.add_header("User-Agent", UA)
-    req.add_header("Origin", BASE)
-    req.add_header("Referer", BASE + "/")
-    req.add_header("Accept", "*/*")
+    h = {
+        "Authorization": "Bearer " + TOKEN,
+        "Origin": BASE,
+        "Referer": BASE + "/",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
     if data:
-        req.add_header("Content-Type", "application/json")
+        h["Content-Type"] = "application/json"
     if COOKIES:
-        req.add_header("Cookie", "; ".join(f"{k}={v}" for k, v in COOKIES.items()))
-    for k, v in (extra_headers or {}).items():
-        req.add_header(k, v)
-    try:
-        with urllib.request.urlopen(req, timeout=300) as r:
-            return r.status, r.read()
-    except urllib.error.HTTPError as e:
-        body = e.read()
-        if _auth_dead(e.code, body):
-            if not DEAD_TOKEN[0]:
-                DEAD_TOKEN[0] = True
-                log("AUTH DEAD:", AUTH_HINT)
-            raise SystemExit(AUTH_HINT)
-        return e.code, body
+        h["Cookie"] = "; ".join(f"{k}={v}" for k, v in COOKIES.items())
+    h.update(extra_headers or {})
+    if _cffi is not None:
+        # The page reaches this API through fetch(), so the request has to look
+        # like XHR, not like a top-level navigation — which is what the
+        # impersonation profile emits by default. Sec-Fetch-User: None drops
+        # the header instead of sending an empty one.
+        h.setdefault("Sec-Fetch-Dest", "empty")
+        h.setdefault("Sec-Fetch-Mode", "cors")
+        h.setdefault("Sec-Fetch-Site", "same-origin")
+        h.setdefault("Sec-Fetch-User", None)
+        if os.environ.get("CHATBRAIN_UA"):
+            h.setdefault("User-Agent", UA)
+        try:
+            r = _session().request(method, url, data=data, headers=h, timeout=300)
+        except Exception as e:
+            raise RuntimeError("upstream transport failed (%s): %s"
+                               % (type(e).__name__, e))
+        st, raw = r.status_code, r.content
+    else:
+        req = urllib.request.Request(url, data=data, method=method)
+        for k, v in h.items():
+            if v is not None:
+                req.add_header(k, v)
+        req.add_header("User-Agent", UA)
+        try:
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                st, raw = resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            st, raw = e.code, e.read()
+    if st >= 400 and _auth_dead(st, raw):
+        if not DEAD_TOKEN[0]:
+            DEAD_TOKEN[0] = True
+            log("AUTH DEAD:", AUTH_HINT)
+        raise SystemExit(AUTH_HINT)
+    return st, raw
 
 def solve_pow():
     st, raw = api("POST", "/api/v0/chat/create_pow_challenge", {"target_path": "/api/v0/chat/completion"})
@@ -330,6 +389,27 @@ def normalize_dsml(raw):
     raw = re.sub(r"(?<=DSML)[｜�]{1,5}", "｜｜", raw)
     return raw
 
+# (open-tag pattern, literal closer to append when it is missing)
+_TAG_PAIRS = [
+    (r"<｜｜DSML｜｜\s*parameter\b[^>]*>", "</｜｜DSML｜｜ parameter>"),
+    (r"<｜｜DSML｜｜\s*invoke\b[^>]*>",    "</｜｜DSML｜｜ invoke>"),
+    (r"<tool_call>",                      "</tool_call>"),
+]
+
+def autoclose(raw):
+    """A stalled or truncated generation leaves a tag open and every downstream
+    regex silently drops the block, so the harness sees prose with no call.
+    Close what is open, innermost first, and the existing parsers pick it up."""
+    for _ in range(3):
+        added = False
+        for op, closer in _TAG_PAIRS:
+            if len(re.findall(op, raw)) > len(re.findall(closer, raw)):
+                raw += closer
+                added = True
+        if not added:
+            break
+    return raw
+
 def parse_dsml(raw):
     """DeepSeek's native DSML tool-call dialect -> OpenAI tool_calls.
     Wrapper-agnostic: invoke blocks are found anywhere in the text (the model
@@ -386,6 +466,31 @@ def extract_tool_obj(s):
     return None
 
 FENCE_RE = re.compile(r"```([^\n]*)\n(.*?)```", re.S)
+FENCE_BODY = re.compile(r"```[^\n]*\n.*?```", re.S)
+
+# A user asking about DSML puts the dialect inside a fence, which makes it
+# content, not markup. Mask fences before the debris sweep so a snippet that
+# talks about the tags keeps its text.
+def _mask_fences(text):
+    store = []
+    def keep(m):
+        store.append(m.group(0))
+        return "\x00%d\x00" % (len(store) - 1)
+    return FENCE_BODY.sub(keep, text), store
+
+def _unmask(text, store):
+    if not store:
+        return text
+    return re.sub(r"\x00(\d+)\x00", lambda m: store[int(m.group(1))], text)
+
+# Any leftover tag from a tool-call dialect: DSML with damaged or missing pipes
+# and spacing drift, plus the plain wrappers — including the bare `< calls>`
+# form R1 emits.
+_DEBRIS_RE = re.compile(
+    r"</?[｜�]{0,5}\s*DSML\s*[｜�]{0,5}[^>]*>"
+    r"|\d{3,}\s*[｜�]{0,5}\s*DSML\s*[｜�]{0,5}[^>]*>"
+    r"|</?\s*(?:tool_calls?|function_calls?|calls?)\b[^>]*>",
+    re.I)
 
 def trim_code_blocks(text):
     """Cap fenced code blocks in text that accompanies tool calls.
@@ -408,7 +513,7 @@ def trim_code_blocks(text):
     return FENCE_RE.sub(repl, text)
 
 def parse_reply(raw):
-    raw = normalize_dsml(raw)
+    raw = autoclose(normalize_dsml(raw))
     calls = []
     spans = []
     # Dialect 1: <tool_call> JSON. The closing tag is UNRELIABLE (the model
@@ -463,10 +568,11 @@ def parse_reply(raw):
     if dcalls:
         calls = calls + dcalls
         text = text2
-    # final sweep: any leftover DSML tag debris (stray closers from fused
-    # dialect blocks) is markup, never content
-    text = re.sub(r"</?｜｜DSML｜｜[^>]*>", "", text).strip()
-    text = re.sub(r"</?tool_call>", "", text).strip()
+    # final sweep: any leftover dialect tag is markup, never content — but
+    # fenced snippets are exempt
+    text, fences = _mask_fences(text)
+    text = _DEBRIS_RE.sub("", text)
+    text = _unmask(text, fences).strip()
     return text, calls
 
 # ---------------- http (OpenAI-compatible facade) ----------------

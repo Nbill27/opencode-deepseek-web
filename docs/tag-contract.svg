@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-label="Tag protocol: harness system prompt and tools become text tags, model replies with tagged tool calls">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0e14"/>
+      <stop offset="1" stop-color="#0d131b"/>
+    </linearGradient>
+    <marker id="a3" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M1 1 L11 6 L1 11 z" fill="#4b9fff"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="560" fill="url(#bg3)"/>
+
+  <text x="60" y="52" font-family="ui-monospace, monospace" font-size="15" fill="#41586e">THE TEXT TAG CONTRACT</text>
+  <path d="M60 66h1080" stroke="#1a2634"/>
+
+  <!-- left panel: outbound -->
+  <rect x="60" y="96" width="480" height="380" rx="10" fill="#0b1219" stroke="#1e2a3a"/>
+  <text x="84" y="128" font-family="ui-monospace, monospace" font-size="13" fill="#4b9fff">TO DEEPSEEK</text>
+
+  <text x="84" y="164" font-family="ui-monospace, monospace" font-size="13" fill="#7f93a8">system + tools, flattened:</text>
+  <text x="84" y="196" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">&lt;read&gt;</text>
+  <text x="84" y="218" font-family="ui-monospace, monospace" font-size="13" fill="#7f93a8">  {"path": string}</text>
+  <text x="84" y="240" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">&lt;/read&gt;</text>
+  <text x="84" y="272" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">&lt;bash&gt;</text>
+  <text x="84" y="294" font-family="ui-monospace, monospace" font-size="13" fill="#7f93a8">  {"command": string}</text>
+  <text x="84" y="316" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">&lt;/bash&gt;</text>
+
+  <rect x="84" y="344" width="432" height="1" fill="#1e2a3a"/>
+  <text x="84" y="374" font-family="ui-monospace, monospace" font-size="12" fill="#7f93a8">each turn re-sends an anchor reminding the</text>
+  <text x="84" y="394" font-family="ui-monospace, monospace" font-size="12" fill="#7f93a8">model which tags exist, so long sessions do</text>
+  <text x="84" y="414" font-family="ui-monospace, monospace" font-size="12" fill="#7f93a8">not drift into prose.</text>
+
+  <!-- middle arrow -->
+  <path d="M556 286h72" stroke="#4b9fff" stroke-width="1.6" marker-end="url(#a3)"/>
+  <text x="592" y="272" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="#4b9fff">reply</text>
+
+  <!-- right panel: inbound -->
+  <rect x="644" y="96" width="496" height="380" rx="10" fill="#0b1219" stroke="#1e2a3a"/>
+  <text x="668" y="128" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">FROM DEEPSEEK</text>
+
+  <text x="668" y="164" font-family="ui-monospace, monospace" font-size="13" fill="#7f93a8">parsed into OpenAI tool_calls:</text>
+  <text x="668" y="196" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">{"cmd": "ls -la"}</text>
+  <text x="668" y="218" font-family="ui-monospace, monospace" font-size="13" fill="#7f93a8">  ↑ recovered even when the</text>
+  <text x="668" y="238" font-family="ui-monospace, monospace" font-size="13" fill="#7f93a8">  closing tag never arrived</text>
+
+  <rect x="668" y="266" width="448" height="1" fill="#1e2a3a"/>
+  <text x="668" y="296" font-family="ui-monospace, monospace" font-size="12" fill="#7f93a8">three dialects are tolerated on the way in:</text>
+  <text x="668" y="324" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">&lt;tag&gt; … &lt;/tag&gt;</text>
+  <text x="668" y="348" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">DSML ｜｜tool▁calls｜｜ …</text>
+  <text x="668" y="372" font-family="ui-monospace, monospace" font-size="13" fill="#e8eef6">&lt; calls&gt;  (R1, bare)</text>
+
+  <text x="668" y="406" font-family="ui-monospace, monospace" font-size="12" fill="#7f93a8">stray separators and broken closers are swept,</text>
+  <text x="668" y="426" font-family="ui-monospace, monospace" font-size="12" fill="#7f93a8">fenced code blocks are left untouched.</text>
+
+  <path d="M60 502h1080" stroke="#1a2634"/>
+  <text x="600" y="534" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="#41586e">the model never sees a JSON schema; the harness never sees a tag</text>
+</svg>

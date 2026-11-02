@@ -18,7 +18,7 @@ relay/.websession.json   live credential (gitignored, never commit)
 relay/relay2.log         per-call diagnostics (gitignored)
 relay/relay2-replies.log first 4 KB of every raw reply (gitignored)
 start.ps1            starts the relay hidden, waits on 20232, execs opencode
-requirements.txt     deepseek-pow, wasmtime, selenium
+requirements.txt     deepseek-pow, wasmtime, curl_cffi, selenium
 ```
 
 ---
@@ -103,8 +103,11 @@ before guessing.
 | `CHATBRAIN_LOG_FILE` | `relay/relay2.log` | diagnostics |
 | `CHATBRAIN_REPLIES_LOG` | `relay/relay2-replies.log` | raw reply capture |
 | `CHATBRAIN_MIN_GAP` | `2.5` | floor seconds between upstream calls |
-| `CHATBRAIN_JITTER` | `1.5` | random extra, `0..JITTER` |
+| `CHATBRAIN_JITTER` | `1.5` | spread of the log-normal gap draw |
+| `CHATBRAIN_PAUSE_EVERY` | `15` | one 20–90 s pause every N calls (`0` disables) |
 | `CHATBRAIN_FAIL_COOLDOWN` | `30` | extra hold after a failed completion |
+| `CHATBRAIN_IMPERSONATE` | `firefox147` | `curl_cffi` TLS/JA3 profile |
+| `CHATBRAIN_UA` | unset | pin a `User-Agent`; default is whatever the profile sends |
 
 ---
 
@@ -138,7 +141,8 @@ before guessing.
 | `Firefox profile not found` | wrong `CHATBRAIN_FF_PROFILE` | re-copy Root Directory from `about:profiles` |
 | `geckodriver not found` | not on `PATH` | set `GECKODRIVER_PATH` |
 | `relay not answering on 20232` | relay died at startup | read `relay/relay2.log` |
-| `NativeCommandError` after `pip install` | PowerShell renders pip's stderr notice as an error | cosmetic; confirm with `pip show deepseek-pow wasmtime selenium` |
+| `upstream transport failed (…)` | `curl_cffi` could not complete the handshake — bad `CHATBRAIN_IMPERSONATE` value, or the network drops the connection | check `python -c "from curl_cffi.requests import BrowserType; print(list(BrowserType))"` for a valid profile, then `pip install -U curl_cffi` |
+| `NativeCommandError` after `pip install` | PowerShell renders pip's stderr notice as an error | cosmetic; confirm with `pip show deepseek-pow wasmtime curl_cffi selenium` |
 
 ---
 

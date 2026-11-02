@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="opencode-deepseek-web">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0e14"/>
+      <stop offset="1" stop-color="#111823"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4b9fff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#4b9fff"/>
+      <stop offset="1" stop-color="#59d3a8" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.15" cy="0.1" r="0.9">
+      <stop offset="0" stop-color="#4b9fff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#4b9fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="300" fill="url(#bg)"/>
+  <rect width="1200" height="300" fill="url(#glow)"/>
+
+  <g stroke="#1e2a3a" stroke-width="1">
+    <path d="M0 60h1200M0 120h1200M0 180h1200M0 240h1200"/>
+  </g>
+  <g stroke="#16202c" stroke-width="1">
+    <path d="M100 0v300M200 0v300M300 0v300M400 0v300M500 0v300M600 0v300M700 0v300M800 0v300M900 0v300M1000 0v300M1100 0v300"/>
+  </g>
+
+  <rect x="52" y="70" width="4" height="150" fill="#4b9fff"/>
+
+  <text x="88" y="122" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="46" font-weight="700" fill="#e8eef6">
+    opencode-deepseek-web
+  </text>
+  <text x="88" y="166" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21" fill="#7f93a8">
+    a free DeepSeek web account, wearing an OpenAI-shaped coat
+  </text>
+
+  <rect x="88" y="192" width="176" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
+  <text x="176" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">openai-compatible</text>
+
+  <rect x="276" y="192" width="140" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
+  <text x="346" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">loopback only</text>
+
+  <rect x="428" y="192" width="150" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
+  <text x="503" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">paced upstream</text>
+
+  <rect x="590" y="192" width="128" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
+  <text x="654" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">2 models</text>
+
+  <circle cx="1060" cy="150" r="46" fill="none" stroke="#1e3247" stroke-width="10"/>
+  <circle cx="1060" cy="150" r="46" fill="none" stroke="#4b9fff" stroke-width="10"
+          stroke-dasharray="180 290" stroke-linecap="round"/>
+  <text x="1060" y="157" text-anchor="middle" font-family="ui-monospace, monospace" font-size="15" fill="#7f93a8">relay</text>
+
+  <rect x="0" y="286" width="1200" height="4" fill="url(#rule)"/>
+</svg>
