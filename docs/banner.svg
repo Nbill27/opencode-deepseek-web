@@ -1,55 +1,89 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="opencode-deepseek-web">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600" viewBox="0 0 1600 600" role="img" aria-labelledby="title desc">
+  <title id="title">opencode-deepseek-web</title>
+  <desc id="desc">Dark developer banner for an OpenAI-compatible DeepSeek web relay.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0a0e14"/>
-      <stop offset="1" stop-color="#111823"/>
+      <stop offset="0" stop-color="#101b2a"/>
+      <stop offset="1" stop-color="#0a111b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#59a8ff"/>
+      <stop offset="1" stop-color="#2d7fe0"/>
     </linearGradient>
     <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#4b9fff" stop-opacity="0"/>
-      <stop offset="0.5" stop-color="#4b9fff"/>
-      <stop offset="1" stop-color="#59d3a8" stop-opacity="0"/>
+      <stop offset="0" stop-color="#388fe8" stop-opacity=".9"/>
+      <stop offset=".72" stop-color="#24517c" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#24517c" stop-opacity="0"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.15" cy="0.1" r="0.9">
-      <stop offset="0" stop-color="#4b9fff" stop-opacity="0.18"/>
-      <stop offset="1" stop-color="#4b9fff" stop-opacity="0"/>
-    </radialGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#142338"/>
+      <stop offset="1" stop-color="#101a28"/>
+    </linearGradient>
+    <pattern id="grid" width="112" height="112" patternUnits="userSpaceOnUse">
+      <path d="M112 0H0V112" fill="none" stroke="#8aa6c4" stroke-opacity=".055" stroke-width="1"/>
+    </pattern>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
   </defs>
 
-  <rect width="1200" height="300" fill="url(#bg)"/>
-  <rect width="1200" height="300" fill="url(#glow)"/>
+  <!-- Background -->
+  <rect width="1600" height="600" fill="url(#bg)"/>
+  <rect width="1600" height="600" fill="url(#grid)"/>
+  <path d="M0 478H1600" stroke="#26384b" stroke-opacity=".34"/>
+  <path d="M0 479H930" stroke="url(#rule)" stroke-width="2"/>
+  <path d="M0 0H1600" stroke="#26384b" stroke-opacity=".22"/>
 
-  <g stroke="#1e2a3a" stroke-width="1">
-    <path d="M0 60h1200M0 120h1200M0 180h1200M0 240h1200"/>
+  <!-- Left accent rail -->
+  <rect x="70" y="150" width="5" height="210" rx="2.5" fill="url(#accent)"/>
+
+  <!-- Terminal mark -->
+  <rect x="112" y="151" width="70" height="62" rx="11" fill="#101c2b" stroke="#337fca" stroke-width="2"/>
+  <path d="M132 173l12 9-12 9M151 191h13" fill="none" stroke="#63adff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Heading -->
+  <text x="205" y="204" fill="#edf3fb" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="61" font-weight="720" letter-spacing="-2.2">opencode-<tspan fill="#5ca8ff">deepseek-web</tspan></text>
+  <text x="114" y="270" fill="#91a4ba" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="26" font-weight="450" letter-spacing=".1">A free DeepSeek web account, wearing an OpenAI-shaped coat.</text>
+
+  <!-- Feature badges -->
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="560">
+    <g transform="translate(114 316)">
+      <rect width="255" height="48" rx="24" fill="#111e2d" stroke="#29445f" stroke-width="1.4"/>
+      <circle cx="23" cy="24" r="4" fill="#58c8a4"/>
+      <text x="39" y="30" fill="#d7e3f0">OpenAI-compatible</text>
+    </g>
+    <g transform="translate(383 316)">
+      <rect width="202" height="48" rx="24" fill="#111e2d" stroke="#29445f" stroke-width="1.4"/>
+      <circle cx="23" cy="24" r="4" fill="#58c8a4"/>
+      <text x="39" y="30" fill="#d7e3f0">Loopback only</text>
+    </g>
+    <g transform="translate(599 316)">
+      <rect width="226" height="48" rx="24" fill="#111e2d" stroke="#29445f" stroke-width="1.4"/>
+      <circle cx="23" cy="24" r="4" fill="#58c8a4"/>
+      <text x="39" y="30" fill="#d7e3f0">Paced upstream</text>
+    </g>
+    <g transform="translate(839 316)">
+      <rect width="150" height="48" rx="24" fill="#111e2d" stroke="#29445f" stroke-width="1.4"/>
+      <circle cx="23" cy="24" r="4" fill="#58c8a4"/>
+      <text x="39" y="30" fill="#d7e3f0">2 models</text>
+    </g>
   </g>
-  <g stroke="#16202c" stroke-width="1">
-    <path d="M100 0v300M200 0v300M300 0v300M400 0v300M500 0v300M600 0v300M700 0v300M800 0v300M900 0v300M1000 0v300M1100 0v300"/>
+
+  <!-- Relay status panel -->
+  <g transform="translate(1190 190)">
+    <rect x="0" y="0" width="310" height="126" rx="17" fill="url(#panel)" stroke="#244364" stroke-width="1.6"/>
+    <circle cx="34" cy="42" r="6" fill="#3bd0a6"/>
+    <circle cx="34" cy="42" r="12" fill="#3bd0a6" opacity=".13" filter="url(#softGlow)"/>
+    <text x="58" y="50" fill="#edf3fb" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="25" font-weight="650">Relay</text>
+    <text x="58" y="82" fill="#91a7bf" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="17" font-weight="500">Upstream proxy</text>
+    <g transform="translate(254 36)" fill="#56a8ff">
+      <rect x="0" y="26" width="8" height="20" rx="2" opacity=".72"/>
+      <rect x="14" y="15" width="8" height="31" rx="2" opacity=".86"/>
+      <rect x="28" y="4" width="8" height="42" rx="2"/>
+    </g>
   </g>
 
-  <rect x="52" y="70" width="4" height="150" fill="#4b9fff"/>
-
-  <text x="88" y="122" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="46" font-weight="700" fill="#e8eef6">
-    opencode-deepseek-web
-  </text>
-  <text x="88" y="166" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21" fill="#7f93a8">
-    a free DeepSeek web account, wearing an OpenAI-shaped coat
-  </text>
-
-  <rect x="88" y="192" width="176" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
-  <text x="176" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">openai-compatible</text>
-
-  <rect x="276" y="192" width="140" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
-  <text x="346" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">loopback only</text>
-
-  <rect x="428" y="192" width="150" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
-  <text x="503" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">paced upstream</text>
-
-  <rect x="590" y="192" width="128" height="30" rx="15" fill="#132131" stroke="#2a4a6b"/>
-  <text x="654" y="212" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="#59d3a8">2 models</text>
-
-  <circle cx="1060" cy="150" r="46" fill="none" stroke="#1e3247" stroke-width="10"/>
-  <circle cx="1060" cy="150" r="46" fill="none" stroke="#4b9fff" stroke-width="10"
-          stroke-dasharray="180 290" stroke-linecap="round"/>
-  <text x="1060" y="157" text-anchor="middle" font-family="ui-monospace, monospace" font-size="15" fill="#7f93a8">relay</text>
-
-  <rect x="0" y="286" width="1200" height="4" fill="url(#rule)"/>
+  <!-- Quiet lower rule -->
+  <path d="M114 478H1487" stroke="#1b2b3c" stroke-width="1"/>
+  <path d="M114 478H880" stroke="url(#rule)" stroke-width="2.5" stroke-linecap="round"/>
 </svg>
